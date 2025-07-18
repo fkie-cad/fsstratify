@@ -1,0 +1,24 @@
+---
+seed: 12345
+log_level: warn
+write_playbook: yes
+
+file_system:
+  type: ntfs
+
+volume:
+  type: file
+  keep: no
+  size: 5G
+
+usage_model:
+  #type: Playbook
+  type: ProbabilisticModel
+  parameters:
+    steps: 100
+    file_size_min: 100Ki
+    file_size_max: 1M
+    #image_format: raw
+    #photo_burst_size: 10
+    #average_video_size: 300M
+    #average_jpeg_size: 5M
