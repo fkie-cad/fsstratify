@@ -1,7 +1,6 @@
 """This module contains the different execution environments."""
 
 from __future__ import annotations
-
 import os
 import shutil
 import subprocess
@@ -32,18 +31,12 @@ from fsstratify.volumes import (
     WindowsRawDiskImage,
 )
 
-forbidden_formatting_parameters = {
-    "diskpart": ["FS="],
-    "mkfs.fat": ["-C"],
-    "mkfs.ntfs": ["--force"],
-}
-
 
 class ExecutionEnvironment:
     """Execution environment base class.
 
     This class defines the interface an execution environment has to implement.
-    Moreover, it already implements some basic functionality which is common for almost
+    Moreover, it already implements some basic functionality that is common for almost
     all execution environments.
     """
 
@@ -162,14 +155,10 @@ class WindowsEnvironment(ExecutionEnvironment):
             )
             raise ConfigurationError(msg)
         command = f"Format-Volume -Confirm:$false -Force:$true -Partition $part -FileSystem {format_fs_name}"
-        command = " ".join(
-            (
-                command,
-                self._config["file_system"]["formatting_parameters"],
-                "| Out-Null;",
-            )
-        )
-        return command
+        if "label" in self._config["file_system"]["formatting_parameters"]:
+            label = self._config["file_system"]["formatting_parameters"]["label"].strip()
+            command = " ".join((command, f"-NewFileSystemLabel '{label}'"))
+        return " | ".join((command, "Out-Null;"))
 
     @contextmanager
     def _mount_file_system(self):
@@ -215,15 +204,8 @@ class WindowsEnvironment(ExecutionEnvironment):
             raise ConfigurationError(
                 f'Unsupported volume type "{volume_type}" for the Windows execution environment.'
             )
-        illegal_formatting_conf = set(
-            self._config["file_system"]["formatting_parameters"].split()
-        ) & set(forbidden_formatting_parameters["diskpart"])
-        if len(illegal_formatting_conf) > 0:
-            raise ConfigurationError(
-                f"Following formatting parameters are used but not allowed for diskpart: {illegal_formatting_conf}"
-            )
 
-        if volume_type == "file":  # build context for file based volume
+        if volume_type == "file":  # build context for file-based volume
             self._image = self._context_stack.enter_context(
                 WindowsRawDiskImage(self._config)
             )
@@ -373,20 +355,6 @@ class FreeBsdEnvironment(BsdEnvironment):
                 ],
                 "ntfs": ["mkfs.ntfs", "--force"],
             }[filesystem]
-            forbidden_params = (
-                forbidden_formatting_parameters[command[0]]
-                if command[0] in forbidden_formatting_parameters.keys()
-                else []
-            )
-            illegal_formatting_conf = set(
-                self._config["file_system"]["formatting_parameters"].split()
-            ) & set(forbidden_params)
-            if len(illegal_formatting_conf) > 0:
-                raise ConfigurationError(
-                    f"Following formatting parameters are used but not allowed for {command[0]}: {illegal_formatting_conf}"
-                )
-            command.extend(self._config["file_system"]["formatting_parameters"].split())
-            command.append(path)
             return command
         except KeyError:
             msg = (
@@ -524,20 +492,6 @@ class LinuxEnvironment(ExecutionEnvironment):
                 ],
                 "ntfs": ["mkfs.ntfs", "--force"],
             }[filesystem]
-            forbidden_params = (
-                forbidden_formatting_parameters[command[0]]
-                if command[0] in forbidden_formatting_parameters.keys()
-                else []
-            )
-            illegal_formatting_conf = set(
-                self._config["file_system"]["formatting_parameters"].split()
-            ) & set(forbidden_params)
-            if len(illegal_formatting_conf) > 0:
-                raise ConfigurationError(
-                    f"Following formatting parameters are used but not allowed for {command[0]}: {illegal_formatting_conf}"
-                )
-            command.extend(self._config["file_system"]["formatting_parameters"].split())
-            command.append(path)
             return command
         except KeyError:
             msg = (

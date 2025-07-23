@@ -2,7 +2,7 @@ from pathlib import Path
 from pprint import pformat
 
 import strictyaml
-from strictyaml import Map, Int, Bool, Str, Optional, Any
+from strictyaml import Map, Int, Bool, Str, Optional, Any, EmptyDict, MapPattern
 
 from fsstratify.errors import ConfigurationError
 from fsstratify.platforms import get_current_platform, Platform
@@ -31,7 +31,8 @@ class Configuration:
                 "file_system": Map(
                     {
                         "type": Str(),
-                        "formatting_parameters": Str(),
+                        Optional("formatting_parameters"): EmptyDict()
+                        | MapPattern(Str(), Any()),
                         Optional("prepopulate_with"): Map(
                             {
                                 "dataset": Str(),
@@ -97,6 +98,8 @@ class Configuration:
         cfg["output_playbook_path"] = (
             Path(simulation_dir) / _OUTPUT_PLAYBOOK_NAME
         ).resolve()
+        if "formatting_parameters" not in cfg["file_system"]:
+            cfg["filesystem"]["formatting_parameters"] = dict()
         self._additional_conf_check(cfg)
         self._cfg = cfg
 
