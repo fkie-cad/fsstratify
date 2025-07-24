@@ -53,7 +53,12 @@ class Configuration:
                         Optional("device"): Str(),
                     }
                 ),
-                "usage_model": Map({"type": Str(), "parameters": Any()}),
+                "usage_model": Map(
+                    {
+                        "type": Str(),
+                        Optional("parameters"): EmptyDict() | MapPattern(Str(), Any()),
+                    }
+                ),
             }
         )
 
@@ -100,6 +105,8 @@ class Configuration:
         ).resolve()
         if "formatting_parameters" not in cfg["file_system"]:
             cfg["filesystem"]["formatting_parameters"] = dict()
+        if "parameters" not in cfg["usage_model"]:
+            cfg["usage_model"]["parameters"] = dict()
         self._additional_conf_check(cfg)
         self._cfg = cfg
 
