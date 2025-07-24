@@ -69,15 +69,15 @@ class PatternGenerator(DataGenerator):
         return f"pattern({self._pattern_width},{self._format_str},{self._static_str})"
 
     def _generate(self, size: int) -> bytes:
-        data = bytes()
+        data = ""
         while len(data) < size:
             if self._chunk_index >= len(self._chunk):
-                self._chunk = bytes(self._generate_pattern(), encoding="utf-8")
+                self._chunk = self._generate_pattern()
                 self._chunk_index = 0
             bytes_needed = size - len(data)
             data += self._chunk[self._chunk_index : bytes_needed]
             self._chunk_index += bytes_needed
-        return data
+        return bytes(data, encoding="utf-8")
 
     def _interpolate_static_format_str_parts(self) -> str:
         segments = []
@@ -137,17 +137,17 @@ def from_playbook_string(
 
 
 if __name__ == "__main__":
-    dg = PatternGenerator(512, "%f_%c_%s", "O", "test.txt")
+    dg = PatternGenerator(512, "%f_%c_%s", "O", Path("test.txt"))
     print(dg.generate(40))
     print(dg.generate(40))
     print(dg.generate(28))
 
-    dg = PatternGenerator(512, "%f_%c_%S", "O", "test.txt")
+    dg = PatternGenerator(512, "%f_%c_%S", "O", Path("test.txt"))
     print(dg.generate(40))
     print(dg.generate(40))
     print(dg.generate(28))
 
-    dg = PatternGenerator(11, "%S_%c|", "IG", "test.txt")
+    dg = PatternGenerator(11, "%S_%c|", "IG", Path("test.txt"))
     print(dg.generate(40))
     print(dg.generate(40))
     print(dg.generate(28))
