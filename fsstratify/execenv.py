@@ -494,6 +494,7 @@ class LinuxEnvironment(ExecutionEnvironment):
                 ],
                 "ntfs": ["mkfs.ntfs", "--force"],
             }[filesystem]
+            command.append(str(path))
             return command
         except KeyError:
             msg = (

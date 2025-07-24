@@ -427,7 +427,7 @@ class Extend(FileWriteOperation):
         playbook_line = f"{self.playbook_command} {self._path} extend_size={self._write_size} chunked={self._chunked} chunk_size={self._chunk_size}"
         if isinstance(self._data, PatternGenerator):
             playbook_line = (
-                f"{playbook_line} data_generator={self._data.pattern_string}"
+                f"{playbook_line} data_generator={self._data.as_playbook_string()}"
             )
         return playbook_line
 
@@ -474,13 +474,16 @@ class Extend(FileWriteOperation):
                     raise PlaybookError(
                         f'Invalid playbook line: "{line}". extend_size has to be > 0.'
                     )
-            elif param.startswith("pattern="):
+            elif param.startswith("data_generator="):
                 try:
-                    pattern = param.split("=")[1]
-                    if pattern == "":
-                        raise PlaybookError(
-                            "Pattern string cannot be empty. One or more characters are required."
+                    generator_str = param.split("=", maxsplit=1)[1]
+                    if generator_str == "":
+                        raise PlaybookError("data_generator value cannot be empty.")
+                    args["data_generator"] = (
+                        fsstratify.datagenerators.from_playbook_string(
+                            generator_str, args["path"]
                         )
+                    )
                 except ValueError:
                     raise PlaybookError(
                         f'Invalid playbook line: "{line}". Invalid parameter "{param}.'
