@@ -156,7 +156,9 @@ class WindowsEnvironment(ExecutionEnvironment):
             raise ConfigurationError(msg)
         command = f"Format-Volume -Confirm:$false -Force:$true -Partition $part -FileSystem {format_fs_name}"
         if "label" in self._config["file_system"]["formatting_parameters"]:
-            label = self._config["file_system"]["formatting_parameters"]["label"].strip()
+            label = self._config["file_system"]["formatting_parameters"][
+                "label"
+            ].strip()
             command = " ".join((command, f"-NewFileSystemLabel '{label}'"))
         return " | ".join((command, "Out-Null;"))
 

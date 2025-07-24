@@ -14,9 +14,9 @@ from functools import partial
 
 from tqdm import tqdm
 
+import fsstratify.datagenerators
 from fsstratify.datagenerators import (
     RandomDataGenerator,
-    StaticStringGenerator,
     PatternGenerator,
 )
 from fsstratify.errors import SimulationError, PlaybookError
@@ -481,9 +481,6 @@ class Extend(FileWriteOperation):
                         raise PlaybookError(
                             "Pattern string cannot be empty. One or more characters are required."
                         )
-                    args["data_generator"] = partial(
-                        StaticStringGenerator, pattern, len(pattern)
-                    )
                 except ValueError:
                     raise PlaybookError(
                         f'Invalid playbook line: "{line}". Invalid parameter "{param}.'
@@ -537,7 +534,7 @@ class Write(FileWriteOperation):
         )
         if isinstance(self._data, PatternGenerator):
             playbook_line = (
-                f"{playbook_line} data_generator={self._data.pattern_string}"
+                f"{playbook_line} data_generator={self._data.as_playbook_string()}"
             )
         return playbook_line
 
@@ -586,38 +583,14 @@ class Write(FileWriteOperation):
                     )
             elif param.startswith("data_generator="):
                 try:
-                    generator_type = param.split("=")[1]
-                    if generator_type == "":
-                        raise PlaybookError(
-                            "Pattern string cannot be empty. One or more characters are required."
+                    generator_str = param.split("=", maxsplit=1)[1]
+                    if generator_str == "":
+                        raise PlaybookError("data_generator value cannot be empty.")
+                    args["data_generator"] = (
+                        fsstratify.datagenerators.from_playbook_string(
+                            generator_str, args["path"]
                         )
-                    if generator_type.startswith("pattern"):
-                        number, format, text = parse_pattern_format_string(
-                            generator_type
-                        )
-                        number = int(number)
-
-                        pattern = ""
-                        include_pattern_chunk_counter = False
-                        tokens = format[1:].split("%")
-                        filename = pathlib.Path("")
-
-                        if "s" in tokens:
-                            pattern = text
-                        if "f" in tokens:
-                            filename = args["path"]
-                        if "c" in tokens:
-                            include_pattern_chunk_counter = True
-                        args["data_generator"] = partial(
-                            PatternGenerator,
-                            pattern,
-                            len(pattern),
-                            filename,
-                            number,
-                            include_pattern_chunk_counter,
-                            generator_type,
-                        )
-
+                    )
                 except ValueError:
                     raise PlaybookError(
                         f'Invalid playbook line: "{line}". Invalid parameter "{param}.'
@@ -626,7 +599,6 @@ class Write(FileWriteOperation):
                 raise PlaybookError(
                     f'Invalid playbook line: "{line}". Unknown parameter "{param}.'
                 )
-
         return cls(**args)
 
 

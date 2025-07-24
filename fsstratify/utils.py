@@ -136,7 +136,7 @@ def merge_blocks_to_fragments(block_list: Collection) -> list:
 
 
 def merge_overlapping_fragments(
-    fragments: List[Tuple[int, int]]
+    fragments: List[Tuple[int, int]],
 ) -> List[Tuple[int, int]]:
     """Merge overlapping and consecutive intervals."""
     if len(fragments) == 0:
@@ -257,3 +257,36 @@ def parse_pattern_format_string(format_string: str) -> Tuple[str, str, str] | No
             return None
     else:
         return None
+
+
+def split_on_first_and_last(s: str, sep: str) -> Tuple[str, str, str]:
+    first = s.find(sep)
+    last = s.rfind(sep)
+    if first == -1 or last == -1 or first == last:
+        raise ValueError(f"Error: Not enough occurrences of separator '{sep}'.")
+    part1 = s[:first]
+    part2 = s[first + 1 : last]
+    part3 = s[last + 1 :]
+    return part1, part2, part3
+
+
+def extract_from_parentheses(s: str) -> str:
+    left = s.find("(")
+    right = s.rfind(")")
+    if left == -1 or right == -1:
+        raise ValueError("Error: String must contain at least one '(' and one ')'.")
+    if left >= right:
+        raise ValueError("Error: Parentheses are unbalanced or in the wrong order.")
+    return s[left + 1 : right]
+
+
+def parse_format_string(fmt: str):
+    if fmt.count("%S") > 1:
+        raise ValueError("Error: '%S' is allowed only once.")
+    pattern = r"%(?!%)[%cfFsS]"
+    matches = list(re.finditer(pattern, fmt))
+    for match in matches:
+        specifier = match.group()
+        if specifier not in ("%c", "%f", "%F", "%s", "%S"):
+            raise ValueError(f"Error: Invalid format specifier: {specifier}.")
+    return [(m.start(), m.end(), m.group()) for m in matches]
