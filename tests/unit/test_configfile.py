@@ -16,7 +16,7 @@ class TestMinimalConfigurationFile:
         config = Configuration()
         config.load_str(minimal_configuration, Path())
         assert config["seed"] == 12345
-        assert config["file_system"] == {"type": "ntfs", "formatting_parameters": ""}
+        assert config["file_system"] == {"type": "ntfs", "formatting_parameters": {}}
         assert config["volume"] == {
             "type": "file",
             "directory": Path(),
