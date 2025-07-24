@@ -69,15 +69,17 @@ class PatternGenerator(DataGenerator):
         return f"pattern({self._pattern_width},{self._format_str},{self._static_str})"
 
     def _generate(self, size: int) -> bytes:
-        data = ""
+        data = bytearray()
         while len(data) < size:
             if self._chunk_index >= len(self._chunk):
                 self._chunk = self._generate_pattern()
                 self._chunk_index = 0
             bytes_needed = size - len(data)
-            data += self._chunk[self._chunk_index : bytes_needed]
+            data += bytes(
+                self._chunk[self._chunk_index : bytes_needed], encoding="utf-8"
+            )
             self._chunk_index += bytes_needed
-        return bytes(data, encoding="utf-8")
+        return bytes(data)
 
     def _interpolate_static_format_str_parts(self) -> str:
         segments = []
@@ -106,7 +108,9 @@ class PatternGenerator(DataGenerator):
             if filler_space <= len(self._static_str):
                 s = "".join((s[:filler_pos], self._static_str, s[filler_pos + 2 :]))
             else:
-                filler_str = "".join(islice(cycle(self._static_str), filler_space))
+                filler_str = (
+                    self._static_str * ((filler_space // len(self._static_str)) + 1)
+                )[:filler_space]
                 s = "".join((s[:filler_pos], filler_str, s[filler_pos + 2 :]))
             self._pattern_counter += 1
             return s[: self._pattern_width]
