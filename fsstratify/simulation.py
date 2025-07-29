@@ -16,7 +16,7 @@ from jinja2 import Template
 from tqdm import tqdm
 
 from fsstratify.configuration import Configuration, SIMULATION_CONFIG_FILE_NAME
-from fsstratify.errors import ConfigurationError, SimulationError
+from fsstratify.errors import ConfigurationError, SimulationError, DiskFullError
 from fsstratify.execenv import (
     get_execution_environment,
     ExecutionEnvironment,
@@ -77,7 +77,16 @@ class Simulation:
                     desc="Simulation step",
                     total=self._operations.steps(),
                 ):
-                    exec_env.execute(operation)
+                    try:
+                        exec_env.execute(operation)
+                    except DiskFullError:
+                        if self._config["continue_on_disk_full"]:
+                            self._logger.warning("Disk is full.")
+                        else:
+                            raise SimulationError(
+                                f"Error: Disk is full at simulation step {self._simulation_step} and "
+                                "continue_on_disk_full is not set."
+                            )
                     stratum = self._get_stratum(operation)
                     self._write_stratum_line(stratum)
                     self._write_playbook_line(operation.as_playbook_line())

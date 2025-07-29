@@ -10,7 +10,7 @@ from pathlib import Path
 from subprocess import run, CalledProcessError, PIPE, STDOUT
 from typing import TYPE_CHECKING
 
-from fsstratify.errors import ConfigurationError, SimulationError
+from fsstratify.errors import ConfigurationError, SimulationError, DiskFullError
 from fsstratify.filesystems import (
     SimulationVirtualFileSystem,
     set_simulation_mount_point,
@@ -56,12 +56,16 @@ class ExecutionEnvironment:
             self._logger.removeHandler(h)
 
     def execute(self, operation: Operation):  # pragma: no cover
-        """Execute the given operation.
-
-        This method has to be implemented by the child classes of the
-        ExecutionEnvironment.
-        """
-        raise NotImplementedError
+        """Execute the given operation."""
+        try:
+            operation.execute()
+        except OSError as err:
+            if err.errno == 28:
+                raise DiskFullError
+            else:
+                raise err
+        finally:
+            self._image.flush()
 
     def get_simulation_vfs(self) -> SimulationVirtualFileSystem:
         """Return an instance of the simulation virtual file system."""
@@ -83,9 +87,6 @@ class ExecutionEnvironment:
 
 
 class WindowsEnvironment(ExecutionEnvironment):
-    def execute(self, operation: Operation):
-        operation.execute()
-        self._image.flush()
 
     @contextmanager
     def _attach_vdisk(self):
@@ -232,10 +233,6 @@ class BsdEnvironment(ExecutionEnvironment):
 class FreeBsdEnvironment(BsdEnvironment):
     """FreeBSD execution environment."""
 
-    def execute(self, operation: Operation) -> None:
-        operation.execute()
-        self._image.flush()
-
     def __enter__(self):
         self._logger.info("Setting up the execution environment")
         volume_type = self._config["volume"]["type"]
@@ -368,10 +365,6 @@ class FreeBsdEnvironment(BsdEnvironment):
 
 class LinuxEnvironment(ExecutionEnvironment):
     """Linux execution environment."""
-
-    def execute(self, operation: Operation) -> None:
-        operation.execute()
-        self._image.flush()
 
     def __enter__(self):
         self._logger.info("Setting up the execution environment")

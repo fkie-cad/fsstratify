@@ -13,6 +13,10 @@ class SimulationError(FsstratifyError):
     """This error indicates an error during the simulation."""
 
 
+class DiskFullError(SimulationError):
+    """This error is raised when the simulation disk is full."""
+
+
 class VolumeError(FsstratifyError):
     """This error indicates that something went wrong with the volume."""
 

@@ -27,6 +27,7 @@ class Configuration:
                 "seed": Int(),
                 Optional("write_playbook", default=False): Bool(),
                 Optional("write_timestamps", default=False): Bool(),
+                Optional("continue_on_disk_full", default=False): Bool(),
                 Optional("log_level", default="warning"): Str(),
                 "file_system": Map(
                     {
