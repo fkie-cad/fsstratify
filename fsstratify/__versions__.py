@@ -1,6 +1,8 @@
 """This module only keeps the versions numbers used in fsstratify."""
 
-FSSTRATIFY_VERSION = "0.0.1"
+import importlib.metadata
+
+FSSTRATIFY_VERSION = importlib.metadata.version("fsstratify")
 STRATA_LOG_VERSION = "0.0.1"
 PLAYBOOK_VERSION = "0.0.1"
 

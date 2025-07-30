@@ -1,10 +1,17 @@
+FSSTRATIFY_VENV = .v
 
 default: tests
 
 
 .PHONY: init
-init:
-	pip install -r requirements.txt -U
+init: $(FSSTRATIFY_VENV)
+
+
+$(FSSTRATIFY_VENV):
+	@python3 -m venv $@
+	@. $(FSSTRATIFY_VENV)/bin/activate && \
+	pip install -U pip poetry && \
+	poetry install --with dev,docs,test
 
 
 .PHONY: pylint
@@ -17,31 +24,18 @@ tests: unit-tests
 
 
 .PHONY: unit-tests
-unit-tests:
+unit-tests: $(FSSTRATIFY_VENV)
+	@. $(FSSTRATIFY_VENV)/bin/activate && \
 	py.test -c pyproject.toml --cov
 
 
-.PHONY: lnx-system-test
-lnx-system-test:
-# TODO: implement the actual test (currently it only runs the simulation)
-	. .venv/bin/activate && \
-	PATH=fsstratify/fsparsers/linux:$$PATH PYTHONPATH=. python fsstratify/__main__.py run tests/system/linux/
-	@echo "==== STRATA =============="
-	@cat tests/system/linux/simulation.strata
-	@echo "=========================="
-	#$(RM) tests/system/linux/simulation.log tests/system/linux/simulation.playbook tests/system/linux/simulation.strata
-
-
 .PHONY: docs
-docs:
+docs: $(FSSTRATIFY_VENV)
+	@. $(FSSTRATIFY_VENV)/bin/activate && \
 	$(MAKE) -C docs/ html
 
 
 .PHONY: serve-docs
 serve-docs: docs
-	@cd docs && sphinx-serve
-
-
-.PHONY: proselint
-proselint:
-	@proselint -c docs/*.rst
+	@. $(FSSTRATIFY_VENV)/bin/activate && \
+	cd docs && sphinx-serve
