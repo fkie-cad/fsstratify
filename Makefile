@@ -1,4 +1,4 @@
-FSSTRATIFY_VENV = .v
+FSSTRATIFY_VENV = .fsenv
 
 default: tests
 
