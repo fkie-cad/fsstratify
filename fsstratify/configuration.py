@@ -105,7 +105,7 @@ class Configuration:
             Path(simulation_dir) / _OUTPUT_PLAYBOOK_NAME
         ).resolve()
         if "formatting_parameters" not in cfg["file_system"]:
-            cfg["filesystem"]["formatting_parameters"] = dict()
+            cfg["file_system"]["formatting_parameters"] = dict()
         if "parameters" not in cfg["usage_model"]:
             cfg["usage_model"]["parameters"] = dict()
         self._additional_conf_check(cfg)
