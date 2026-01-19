@@ -1,5 +1,3 @@
-import pytest
-
 from fsstratify.operations import (
     get_operations_map,
     Copy,
@@ -8,6 +6,8 @@ from fsstratify.operations import (
     Move,
     Remove,
     Shrink,
+    Sleep,
+    Time,
     Write,
 )
 
@@ -23,5 +23,7 @@ class TestOperationsMap:
             "mv": Move,
             "rm": Remove,
             "shrink": Shrink,
+            "sleep": Sleep,
+            "time": Time,
             "write": Write,
         }
