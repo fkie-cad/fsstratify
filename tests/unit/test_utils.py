@@ -151,3 +151,106 @@ class TestMergeOverlappingFragments:
     )
     def test_that_consecutive_fragments_are_merged(self, fragments, expected):
         assert merge_overlapping_fragments(fragments) == expected
+
+
+class TestParsePatternFormatString:
+    def test_that_valid_pattern_is_parsed_correctly(self):
+        from fsstratify.utils import parse_pattern_format_string
+
+        result = parse_pattern_format_string("pattern(10, %s, hello)")
+        assert result == (10, "%s", "hello")
+
+    def test_that_pattern_with_complex_format_string_works(self):
+        from fsstratify.utils import parse_pattern_format_string
+
+        result = parse_pattern_format_string("pattern(5, %c%f, test)")
+        assert result == (5, "%c%f", "test")
+
+    def test_that_invalid_pattern_returns_none(self):
+        from fsstratify.utils import parse_pattern_format_string
+
+        assert parse_pattern_format_string("invalid") is None
+        assert parse_pattern_format_string("pattern()") is None
+        assert parse_pattern_format_string("pattern(abc, %s, test)") is None
+
+
+class TestSplitOnFirstAndLast:
+    def test_that_string_is_split_correctly(self):
+        from fsstratify.utils import split_on_first_and_last
+
+        result = split_on_first_and_last("a,b,c", ",")
+        assert result == ("a", "b", "c")
+
+    def test_that_multiple_separators_work(self):
+        from fsstratify.utils import split_on_first_and_last
+
+        result = split_on_first_and_last("first,middle,part,last", ",")
+        assert result == ("first", "middle,part", "last")
+
+    def test_that_insufficient_separators_raise_error(self):
+        from fsstratify.utils import split_on_first_and_last
+
+        with pytest.raises(ValueError):
+            split_on_first_and_last("no_separator", ",")
+
+        with pytest.raises(ValueError):
+            split_on_first_and_last("one,separator", ",")
+
+
+class TestExtractFromParentheses:
+    def test_that_content_is_extracted_correctly(self):
+        from fsstratify.utils import extract_from_parentheses
+
+        assert extract_from_parentheses("func(content)") == "content"
+        assert extract_from_parentheses("(simple)") == "simple"
+        assert extract_from_parentheses("prefix(inner)suffix") == "inner"
+
+    def test_that_nested_parentheses_extract_outermost(self):
+        from fsstratify.utils import extract_from_parentheses
+
+        assert extract_from_parentheses("(outer(inner))") == "outer(inner)"
+
+    def test_that_missing_parentheses_raise_error(self):
+        from fsstratify.utils import extract_from_parentheses
+
+        with pytest.raises(ValueError):
+            extract_from_parentheses("no_parens")
+
+        with pytest.raises(ValueError):
+            extract_from_parentheses("only(open")
+
+        with pytest.raises(ValueError):
+            extract_from_parentheses("only)close")
+
+
+class TestParseFormatString:
+    def test_that_valid_format_specifiers_are_parsed(self):
+        from fsstratify.utils import parse_format_string
+
+        result = parse_format_string("test%cfile")
+        assert len(result) == 1
+        assert result[0][2] == "%c"
+
+    def test_that_multiple_specifiers_are_parsed(self):
+        from fsstratify.utils import parse_format_string
+
+        result = parse_format_string("%f%s%c")
+        assert len(result) == 3
+
+    def test_that_S_specifier_allowed_only_once(self):
+        from fsstratify.utils import parse_format_string
+
+        # Single %S should work
+        result = parse_format_string("test%Sfile")
+        assert len(result) == 1
+
+        # Multiple %S should raise
+        with pytest.raises(ValueError, match="%S.*only once"):
+            parse_format_string("%S%S")
+
+    def test_that_escaped_percent_is_ignored(self):
+        from fsstratify.utils import parse_format_string
+
+        result = parse_format_string("100%% complete %c")
+        assert len(result) == 1
+        assert result[0][2] == "%c"
