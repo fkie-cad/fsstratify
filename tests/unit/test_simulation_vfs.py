@@ -19,7 +19,14 @@ _ntuple_diskusage = namedtuple("usage", "total used free")
 
 
 class FakeVolume(Volume):
-    pass
+    def __init__(self, config=None):
+        # Bypass parent's __init__ which requires specific config keys
+        self.path = None
+        self.mount_point = None
+        self._config = config or {}
+        self._dirty = False
+        self._fp = None
+        self._fs_offset = 0
 
 
 class FakeFileSystemParserWithEmptyFileSystem(FileSystemParser):
