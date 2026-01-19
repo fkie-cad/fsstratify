@@ -241,7 +241,7 @@ class FreeBsdEnvironment(BsdEnvironment):
         volume_type = self._config["volume"]["type"]
         if volume_type == "file":
             self._image = self._context_stack.enter_context(
-                LinuxRawDiskImage(self._config["volume"])
+                LinuxRawDiskImage(self._config)
             )
         else:
             raise ConfigurationError(
