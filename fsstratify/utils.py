@@ -145,7 +145,7 @@ def merge_overlapping_fragments(
     for frag in sorted(fragments):
         if len(intervals) > 0:
             if frag[0] == intervals[-1][1] + 1:
-                intervals.append((frag[0] - 1, frag[1]))
+                intervals[-1] = (intervals[-1][0], frag[1])
             else:
                 intervals.append(frag)
         else:

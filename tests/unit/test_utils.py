@@ -146,6 +146,7 @@ class TestMergeOverlappingFragments:
             ([(1, 2), (3, 4), (5, 8), (9, 10)], [(1, 10)]),
             ([(3, 5), (1, 2)], [(1, 5)]),
             ([(3, 5), (1, 2), (6, 8)], [(1, 8)]),
+            ([(1, 5), (6, 10)], [(1, 10)]),
         ),
     )
     def test_that_consecutive_fragments_are_merged(self, fragments, expected):
