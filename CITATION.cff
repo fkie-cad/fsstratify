@@ -1,0 +1,39 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata from this file."
+authors:
+  - family-names: "Uthoff"
+    given-names: "Julian"
+  - family-names: "Dreier"
+    given-names: "Lisa Marie"
+  - family-names: "Lambertz"
+    given-names: "Martin"
+  - family-names: "Rybalka"
+    given-names: "Mariia"
+  - family-names: "Freiling"
+    given-names: "Felix"
+title: "fsstratify"
+url: "https://github.com/fkie-cad/fsstratify"
+repository-code: "https://github.com/fkie-cad/fsstratify"
+identifiers:
+  - type: doi
+    value: 10.1016/j.fsidi.2025.301986
+preferred-citation:
+  type: article
+  authors:
+    - family-names: "Uthoff"
+      given-names: "Julian"
+    - family-names: "Dreier"
+      given-names: "Lisa Marie"
+    - family-names: "Lambertz"
+      given-names: "Martin"
+    - family-names: "Rybalka"
+      given-names: "Mariia"
+    - family-names: "Freiling"
+      given-names: "Felix"
+  doi: "10.1016/j.fsidi.2025.301986"
+  journal: "Forensic Science International: Digital Investigation"
+  title: "Creating a standardized corpus for digital stratigraphic methods with fsstratify"
+  volume: 54
+  year: 2025
+  month: 7
+  start: 301986
