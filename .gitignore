@@ -1,6 +1,7 @@
 /.coverage
 /.idea/
 /.tox/
+/.vagrant/
 /.venv/
 /build/
 /dist/
