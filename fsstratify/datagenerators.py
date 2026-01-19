@@ -63,7 +63,7 @@ class PatternGenerator(DataGenerator):
             any(item[2].lower() == "%f" for item in self._specifiers)
             and self._filename is None
         ):
-            raise SimulationError("Error: %for %F in format string but no path given.")
+            raise SimulationError("Error: %f or %F in format string but no path given.")
 
     def as_playbook_string(self) -> str:
         return f"pattern({self._pattern_width},{self._format_str},{self._static_str})"
