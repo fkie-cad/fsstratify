@@ -104,7 +104,10 @@ class WindowsEnvironment(ExecutionEnvironment):
         try:
             res = run_powershell_script(ps_script)
             if res.returncode != 0:
-                raise
+                raise SimulationError(
+                    f"Unable to attach image as vdisk. PowerShell returned exit code {res.returncode}. "
+                    f"Output: {res.stderr or res.stdout}"
+                )
             self._image.drive_letter = res.stdout.strip()
             yield
         except CalledProcessError as err:
