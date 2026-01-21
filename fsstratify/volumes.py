@@ -11,9 +11,6 @@ from subprocess import CalledProcessError
 from fsstratify.configuration import Configuration
 from fsstratify.platforms import Platform, get_current_platform
 
-if get_current_platform() == Platform.LINUX:
-    from fallocate import fallocate
-
 from fsstratify.errors import VolumeError, SimulationError
 from fsstratify.utils import (
     run_diskpart_script,
@@ -120,8 +117,8 @@ class FileBasedVolume(Volume, ABC):
 class LinuxRawDiskImage(FileBasedVolume):
     """Linux raw disk file implementation.
 
-    The LinuxRawDiskImage uses fallocate to create a new file based image file. If the
-    file already exists, it is left unmodified.
+    The LinuxRawDiskImage creates a new file based image.
+    If the file already exists, it is left unmodified.
     """
 
     def __init__(self, config: Configuration):
@@ -133,7 +130,10 @@ class LinuxRawDiskImage(FileBasedVolume):
 
     def _create(self):
         with self.path.open("wb") as self._fp:
-            fallocate(self._fp, offset=0, len=self._config["size"])
+            try:
+                os.posix_fallocate(self._fp.fileno(), 0, self._config["size"])
+            except (AttributeError, OSError):
+                self._fp.truncate(self._config["size"])
             self._fp.flush()
             os.fsync(self._fp.fileno())
         self.flush()

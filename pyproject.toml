@@ -17,7 +17,6 @@ dependencies = [
     "click_option_group",
     "dissect.ntfs",
     "dissect.target",
-    "fallocate; sys_platform!='win32'",
     "jinja2",
     "numpy",
     "pandas",
