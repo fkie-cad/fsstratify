@@ -9,8 +9,12 @@ description = "A framework to generate used file systems"
 license = "MIT"
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
 ]
-requires-python = ">=3.12,<4.0"
+# Capped at 3.12: the dissect stack officially supports Python 3.9-3.12. On 3.13+,
+# dissect.target's pathlib-compat shim breaks (it assumes the private glob._Globber,
+# which changed in 3.14).
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "attrs",
     "click",
@@ -53,7 +57,6 @@ optional = true
 [tool.poetry.group.test.dependencies]
 pytest = "^8.4.1"
 py = "^1.11.0"
-pytest-codestyle = "^2.0.1"
 pytest-cov = "^6.2.1"
 pytest-skip-slow = "^0.0.5"
 pyyaml = "^6.0.2"

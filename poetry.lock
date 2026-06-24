@@ -1140,18 +1140,6 @@ files = [
 test = ["cffi", "hypothesis", "pandas", "pytest", "pytz"]
 
 [[package]]
-name = "pycodestyle"
-version = "2.14.0"
-description = "Python style guide checker"
-optional = false
-python-versions = ">=3.9"
-groups = ["test"]
-files = [
-    {file = "pycodestyle-2.14.0-py2.py3-none-any.whl", hash = "sha256:dd6bf7cb4ee77f8e016f9c8e74a35ddd9f67e1d5fd4184d86c3b98e07099f42d"},
-    {file = "pycodestyle-2.14.0.tar.gz", hash = "sha256:c4b5b517d278089ff9d0abdec919cd97262a3367449ea1c8b49b91529167b783"},
-]
-
-[[package]]
 name = "pygments"
 version = "2.19.2"
 description = "Pygments is a syntax highlighting package written in Python."
@@ -1187,24 +1175,6 @@ pygments = ">=2.7.2"
 
 [package.extras]
 dev = ["argcomplete", "attrs (>=19.2)", "hypothesis (>=3.56)", "mock", "requests", "setuptools", "xmlschema"]
-
-[[package]]
-name = "pytest-codestyle"
-version = "2.0.1"
-description = "pytest plugin to run pycodestyle"
-optional = false
-python-versions = "~=3.5"
-groups = ["test"]
-files = [
-    {file = "pytest-codestyle-2.0.1.tar.gz", hash = "sha256:d2a088d1d2fe6d006fdcfe0075e1282eeb37c21edea985a26ceca3a6769b1537"},
-]
-
-[package.dependencies]
-pycodestyle = "*"
-pytest = "*"
-
-[package.extras]
-tests = ["pytest-isort"]
 
 [[package]]
 name = "pytest-cov"
@@ -1716,5 +1686,5 @@ zstd = ["zstandard (>=0.18.0)"]
 
 [metadata]
 lock-version = "2.1"
-python-versions = ">=3.12,<4.0"
-content-hash = "86f90d29aab63b3cbf5fa189399be5cf267726d69e69c72a46cd5ca4dc5dc976"
+python-versions = ">=3.12,<3.13"
+content-hash = "d9f27c36a8d84970c3edb32cad7d5a771a602b93b550f4b5657de50f879cd02c"

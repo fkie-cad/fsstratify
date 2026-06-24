@@ -43,6 +43,17 @@ def _byte_range_to_block_range(start_byte: int, length_byte: int) -> Tuple[int, 
     return first, last
 
 
+def _clusters_to_block_range(
+    start_lcn: int, count: int, cluster_size: int
+) -> Tuple[int, int]:
+    """Convert an NTFS cluster run into an inclusive 512-byte block range.
+
+    Funnels cluster runs through :func:`_byte_range_to_block_range` so that NTFS
+    ``allocated_areas`` and ``fs_areas`` share the same unit and interval convention.
+    """
+    return _byte_range_to_block_range(start_lcn * cluster_size, count * cluster_size)
+
+
 def _normalize_timestamps(created, modified, changed, accessed) -> dict:
     """Return a file-system-agnostic timestamp dict with ISO-formatted values.
 
@@ -375,12 +386,8 @@ class NtfsParser(FileSystemParser):
                     )
                 ]
             else:
-                cluster_factor = ntfs.cluster_size / FSSTRATIFY_BLOCK_SIZE
                 return [
-                    (
-                        int(run[0] * cluster_factor),
-                        int((run[0] + run[1]) * cluster_factor - 1),
-                    )
+                    _clusters_to_block_range(run[0], run[1], ntfs.cluster_size)
                     for run in record.dataruns()
                 ]
 
@@ -454,7 +461,9 @@ class NtfsParser(FileSystemParser):
                                 for run in attr.dataruns():
                                     if None not in run:
                                         file_system_areas.append(
-                                            (run[0], run[0] + run[1] - 1)
+                                            _clusters_to_block_range(
+                                                run[0], run[1], ntfs.cluster_size
+                                            )
                                         )
                             except dissect.ntfs.exceptions.FileNotFoundError:
                                 # TODO: generate a warning
