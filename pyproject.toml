@@ -16,6 +16,8 @@ dependencies = [
     "click",
     "click_option_group",
     "dissect.ntfs",
+    "dissect.extfs",
+    "dissect.fat",
     "dissect.target",
     "jinja2",
     "numpy",

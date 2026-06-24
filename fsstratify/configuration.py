@@ -11,6 +11,18 @@ from fsstratify.utils import parse_size_definition
 FSSTRATIFY_BLOCK_SIZE = 512
 SIMULATION_CONFIG_FILE_NAME = "simulation.yml"
 
+#: File system types for which both formatting/mounting and stratum read-back are
+#: implemented. Keep this in sync with ``filesystems.get_file_system_parser``.
+SUPPORTED_FILE_SYSTEMS = (
+    "ntfs",
+    "ext2",
+    "ext3",
+    "ext4",
+    "fat12",
+    "fat16",
+    "fat32",
+)
+
 SIMULATION_MOUNT_POINT = "mnt"
 _SIMULATION_LOG_NAME = "simulation.log"
 _STRATA_LOG_NAME = "simulation.strata"
@@ -65,6 +77,12 @@ class Configuration:
 
     @staticmethod
     def _additional_conf_check(cfg):
+        fs_type = cfg["file_system"]["type"].lower()
+        if fs_type not in SUPPORTED_FILE_SYSTEMS:
+            raise ConfigurationError(
+                f'Error: unsupported file system "{cfg["file_system"]["type"]}". '
+                f"Supported file systems are: {', '.join(SUPPORTED_FILE_SYSTEMS)}."
+            )
         if (
             get_current_platform() == Platform.WINDOWS
             and cfg["volume"]["type"].lower() == "physical"
