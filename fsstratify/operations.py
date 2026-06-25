@@ -110,7 +110,24 @@ class FileWriteOperation(Operation, ABC):
         self._path = self._normalize_simulation_path(path)
         self._real_path: Optional[Path] = None
         self._write_size = write_size
+        self._bytes_written = 0
         self._data = data_generator()
+
+    @property
+    def bytes_written(self) -> int:
+        """Number of bytes actually written to disk by the last ``execute()``.
+
+        Derived from the real on-disk file size after the operation, so it stays
+        accurate even when an ENOSPC truncates the write (audit finding H1) and
+        regardless of Python/FUSE buffering. For a clean run it equals the requested
+        size; for a partial (disk-full) write it is smaller.
+
+        Residual limitation: if ntfs-3g/FUSE defers allocation entirely past the file's
+        ``close()``, the write reports success and no ``OSError`` reaches the execution
+        environment, so neither a ``DiskFullError`` nor a short ``bytes_written`` is
+        produced. Closing that gap needs a checked ``fsync``/image sync (audit M4).
+        """
+        return self._bytes_written
 
     def _write(self, chunk_size: int) -> None:
         self._write_to_file(chunk_size, "w")
@@ -120,22 +137,39 @@ class FileWriteOperation(Operation, ABC):
 
     def _write_to_file(self, chunk_size: int, mode: str) -> None:
         self._assert_path_is_valid()
+        # Baseline for the on-disk reconciliation below: "w" truncates, so 0; "a"
+        # appends, so the size already present before this operation.
+        initial_size = (
+            self._real_path.stat().st_size
+            if mode == "a" and self._real_path.exists()
+            else 0
+        )
         byte_num_to_add = self._write_size
-        with (
-            self._real_path.open(f"{mode}b") as f,
-            tqdm(
-                total=self._write_size,
-                desc=f"  current operation - {self.playbook_command}",
-                leave=False,
-            ) as pbar,
-        ):
-            while byte_num_to_add != 0:
-                byte_num_for_step = (
-                    chunk_size if (chunk_size <= byte_num_to_add) else byte_num_to_add
-                )
-                f.write(self._data.generate(byte_num_for_step))
-                byte_num_to_add -= byte_num_for_step
-                pbar.update(byte_num_for_step)
+        try:
+            with (
+                self._real_path.open(f"{mode}b") as f,
+                tqdm(
+                    total=self._write_size,
+                    desc=f"  current operation - {self.playbook_command}",
+                    leave=False,
+                ) as pbar,
+            ):
+                while byte_num_to_add != 0:
+                    byte_num_for_step = (
+                        chunk_size
+                        if (chunk_size <= byte_num_to_add)
+                        else byte_num_to_add
+                    )
+                    f.write(self._data.generate(byte_num_for_step))
+                    byte_num_to_add -= byte_num_for_step
+                    pbar.update(byte_num_for_step)
+        finally:
+            # Reconcile against on-disk reality on both success and ENOSPC (the file is
+            # closed/flushed by now). A short value flags a truncated, disk-full write.
+            try:
+                self._bytes_written = self._real_path.stat().st_size - initial_size
+            except OSError:
+                self._bytes_written = 0
 
     def _assert_path_is_valid(self) -> None:
         if self._real_path.is_dir():
@@ -419,6 +453,7 @@ class Extend(FileWriteOperation):
             "command": self.playbook_command,
             "path": self._path,
             "extend_size": self._write_size,
+            "bytes_written": self._bytes_written,
             "chunked": self._chunked,
             "chunk_size": self._chunk_size,
         }
@@ -526,6 +561,7 @@ class Write(FileWriteOperation):
             "command": self.playbook_command,
             "path": self._path,
             "size": self._write_size,
+            "bytes_written": self._bytes_written,
             "chunked": self._chunked,
             "chunk_size": self._chunk_size,
         }

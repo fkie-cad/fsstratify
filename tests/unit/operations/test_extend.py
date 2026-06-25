@@ -1,3 +1,4 @@
+import errno
 import os
 from pathlib import Path
 from unittest.mock import patch, mock_open
@@ -18,6 +19,7 @@ from tests.unit.operations.conftest import WriteCountSpy
                 "command": "extend",
                 "path": Path("/sfile"),
                 "extend_size": 1024,
+                "bytes_written": 0,
                 "chunked": False,
                 "chunk_size": 512,
             },
@@ -28,6 +30,7 @@ from tests.unit.operations.conftest import WriteCountSpy
                 "command": "extend",
                 "path": Path("/sfile"),
                 "extend_size": 1024,
+                "bytes_written": 0,
                 "chunked": False,
                 "chunk_size": 512,
             },
@@ -38,6 +41,7 @@ from tests.unit.operations.conftest import WriteCountSpy
                 "command": "extend",
                 "path": Path("/sfile"),
                 "extend_size": 1024,
+                "bytes_written": 0,
                 "chunked": True,
                 "chunk_size": 512,
             },
@@ -48,6 +52,7 @@ from tests.unit.operations.conftest import WriteCountSpy
                 "command": "extend",
                 "path": Path("/sfile"),
                 "extend_size": 2048,
+                "bytes_written": 0,
                 "chunked": False,
                 "chunk_size": 1024,
             },
@@ -58,6 +63,7 @@ from tests.unit.operations.conftest import WriteCountSpy
                 "command": "extend",
                 "path": Path("/sfile"),
                 "extend_size": 2048,
+                "bytes_written": 0,
                 "chunked": True,
                 "chunk_size": 1024,
             },
@@ -77,6 +83,7 @@ def test_that_as_dict_works(op, expected):
                 "command": "extend",
                 "path": Path("/sfile"),
                 "extend_size": 1024,
+                "bytes_written": 0,
                 "chunked": False,
                 "chunk_size": 512,
             },
@@ -87,6 +94,7 @@ def test_that_as_dict_works(op, expected):
                 "command": "extend",
                 "path": Path("/sfile"),
                 "extend_size": 1024,
+                "bytes_written": 0,
                 "chunked": False,
                 "chunk_size": 512,
             },
@@ -97,6 +105,7 @@ def test_that_as_dict_works(op, expected):
                 "command": "extend",
                 "path": Path("/sfile"),
                 "extend_size": 1024,
+                "bytes_written": 0,
                 "chunked": True,
                 "chunk_size": 512,
             },
@@ -107,6 +116,7 @@ def test_that_as_dict_works(op, expected):
                 "command": "extend",
                 "path": Path("/sfile"),
                 "extend_size": 1024,
+                "bytes_written": 0,
                 "chunked": False,
                 "chunk_size": 1000,
             },
@@ -117,6 +127,7 @@ def test_that_as_dict_works(op, expected):
                 "command": "extend",
                 "path": Path("/sfile"),
                 "extend_size": 1024,
+                "bytes_written": 0,
                 "chunked": True,
                 "chunk_size": 1000,
             },
@@ -127,6 +138,7 @@ def test_that_as_dict_works(op, expected):
                 "command": "extend",
                 "path": Path("/sfile"),
                 "extend_size": 1024**2,
+                "bytes_written": 0,
                 "chunked": True,
                 "chunk_size": 1000,
             },
@@ -137,6 +149,7 @@ def test_that_as_dict_works(op, expected):
                 "command": "extend",
                 "path": Path("/sfile"),
                 "extend_size": 1024,
+                "bytes_written": 0,
                 "chunked": True,
                 "chunk_size": 1000,
             },
@@ -147,6 +160,7 @@ def test_that_as_dict_works(op, expected):
                 "command": "extend",
                 "path": Path("/sfile"),
                 "extend_size": 1000**3,
+                "bytes_written": 0,
                 "chunked": True,
                 "chunk_size": 1024**2,
             },
@@ -250,6 +264,46 @@ def test_that_a_file_is_extended_correctly(extend_size: int, mounted_test_vfs):
     old_size = os.stat(real_path).st_size
     Extend(Path("sfile"), extend_size=extend_size).execute()
     assert os.stat(real_path).st_size == old_size + extend_size
+
+
+@pytest.mark.parametrize("extend_size", (1, 100, 512, 1024))
+def test_that_bytes_written_counts_only_appended_bytes_on_success(
+    extend_size: int, mounted_test_vfs
+):
+    # H1: bytes_written is the *appended* amount, not the final file size -> the
+    # pre-existing content must be subtracted (initial_size baseline).
+    op = Extend(Path("sfile"), extend_size=extend_size, chunked=True, chunk_size=512)
+    op.execute()
+    assert op.bytes_written == extend_size
+    assert op.as_dict()["bytes_written"] == extend_size
+    assert op.as_dict()["extend_size"] == extend_size
+
+
+def test_that_bytes_written_reflects_a_partial_extend_on_disk_full(mounted_test_vfs):
+    # H1: an ENOSPC mid-extend appends only part of the data; bytes_written must report
+    # the appended delta (final size minus the original size), not the requested amount.
+    chunk_size = 512
+    chunks_before_failure = 2
+    requested_size = chunk_size * 8
+    expected_appended = chunk_size * chunks_before_failure
+
+    real_path = mounted_test_vfs.path / "sfile"
+    original_size = os.stat(real_path).st_size
+
+    op = Extend(
+        Path("sfile"), extend_size=requested_size, chunked=True, chunk_size=chunk_size
+    )
+    side_effects = [bytes(chunk_size)] * chunks_before_failure + [
+        OSError(errno.ENOSPC, "No space left on device")
+    ]
+    with patch.object(op._data, "generate", side_effect=side_effects):
+        with pytest.raises(OSError):
+            op.execute()
+
+    assert os.stat(real_path).st_size == original_size + expected_appended
+    assert op.bytes_written == expected_appended
+    assert op.as_dict()["bytes_written"] == expected_appended
+    assert op.as_dict()["extend_size"] == requested_size
 
 
 @pytest.mark.parametrize("extend_size", (1, 2, 3, 100, 512, 1024, 4096))

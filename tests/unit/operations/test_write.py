@@ -1,3 +1,4 @@
+import errno
 import os
 from pathlib import Path
 from unittest.mock import patch, mock_open
@@ -18,6 +19,7 @@ from tests.unit.operations.conftest import WriteCountSpy
                 "command": "write",
                 "path": Path("/sfile"),
                 "size": 1024,
+                "bytes_written": 0,
                 "chunked": False,
                 "chunk_size": 512,
             },
@@ -28,6 +30,7 @@ from tests.unit.operations.conftest import WriteCountSpy
                 "command": "write",
                 "path": Path("/sfile"),
                 "size": 1024,
+                "bytes_written": 0,
                 "chunked": False,
                 "chunk_size": 512,
             },
@@ -38,6 +41,7 @@ from tests.unit.operations.conftest import WriteCountSpy
                 "command": "write",
                 "path": Path("/sfile"),
                 "size": 1024,
+                "bytes_written": 0,
                 "chunked": True,
                 "chunk_size": 512,
             },
@@ -48,6 +52,7 @@ from tests.unit.operations.conftest import WriteCountSpy
                 "command": "write",
                 "path": Path("/sfile"),
                 "size": 2048,
+                "bytes_written": 0,
                 "chunked": False,
                 "chunk_size": 1024,
             },
@@ -58,6 +63,7 @@ from tests.unit.operations.conftest import WriteCountSpy
                 "command": "write",
                 "path": Path("/sfile"),
                 "size": 2048,
+                "bytes_written": 0,
                 "chunked": True,
                 "chunk_size": 1024,
             },
@@ -77,6 +83,7 @@ def test_that_as_dict_works(op, expected):
                 "command": "write",
                 "path": Path("/sfile"),
                 "size": 1024,
+                "bytes_written": 0,
                 "chunked": False,
                 "chunk_size": 512,
             },
@@ -87,6 +94,7 @@ def test_that_as_dict_works(op, expected):
                 "command": "write",
                 "path": Path("/sfile"),
                 "size": 1024,
+                "bytes_written": 0,
                 "chunked": False,
                 "chunk_size": 512,
             },
@@ -97,6 +105,7 @@ def test_that_as_dict_works(op, expected):
                 "command": "write",
                 "path": Path("/sfile"),
                 "size": 1024,
+                "bytes_written": 0,
                 "chunked": True,
                 "chunk_size": 512,
             },
@@ -107,6 +116,7 @@ def test_that_as_dict_works(op, expected):
                 "command": "write",
                 "path": Path("/sfile"),
                 "size": 1024,
+                "bytes_written": 0,
                 "chunked": False,
                 "chunk_size": 1000,
             },
@@ -117,6 +127,7 @@ def test_that_as_dict_works(op, expected):
                 "command": "write",
                 "path": Path("/sfile"),
                 "size": 1024,
+                "bytes_written": 0,
                 "chunked": True,
                 "chunk_size": 1000,
             },
@@ -127,6 +138,7 @@ def test_that_as_dict_works(op, expected):
                 "command": "write",
                 "path": Path("/sfile"),
                 "size": 1024**2,
+                "bytes_written": 0,
                 "chunked": True,
                 "chunk_size": 1000,
             },
@@ -137,6 +149,7 @@ def test_that_as_dict_works(op, expected):
                 "command": "write",
                 "path": Path("/sfile"),
                 "size": 1024,
+                "bytes_written": 0,
                 "chunked": True,
                 "chunk_size": 1000,
             },
@@ -147,6 +160,7 @@ def test_that_as_dict_works(op, expected):
                 "command": "write",
                 "path": Path("/sfile"),
                 "size": 1000**3,
+                "bytes_written": 0,
                 "chunked": True,
                 "chunk_size": 1024**2,
             },
@@ -247,6 +261,55 @@ def test_that_a_file_is_written_correctly(size: int, mounted_test_vfs):
     real_path = mounted_test_vfs.path / "newfile"
     Write(Path("newfile"), size=size).execute()
     assert os.stat(real_path).st_size == size
+
+
+def test_that_a_fresh_operation_reports_zero_bytes_written():
+    # H1: before execute() nothing has been written.
+    assert Write(Path("newfile"), size=1024).bytes_written == 0
+
+
+@pytest.mark.parametrize("size", (1, 100, 512, 1024, 4096))
+def test_that_bytes_written_equals_size_on_a_successful_write(
+    size: int, mounted_test_vfs
+):
+    # H1: a clean write records actual == requested, and the playbook keeps the
+    # requested size only (no bytes_written) for replay fidelity.
+    op = Write(Path("newfile"), size=size, chunked=True, chunk_size=512)
+    op.execute()
+    assert op.bytes_written == size
+    assert op.as_dict()["bytes_written"] == size
+    assert op.as_dict()["size"] == size
+    assert "bytes_written" not in op.as_playbook_line()
+
+
+def test_that_bytes_written_reflects_a_partial_write_on_disk_full(mounted_test_vfs):
+    # H1: an ENOSPC mid-write leaves a truncated file; bytes_written, read back from the
+    # on-disk size, must reflect the truncation while the requested size is unchanged.
+    chunk_size = 512
+    chunks_before_failure = 3
+    requested_size = chunk_size * 10
+    expected_written = chunk_size * chunks_before_failure
+
+    op = Write(
+        Path("newfile"), size=requested_size, chunked=True, chunk_size=chunk_size
+    )
+    real_path = mounted_test_vfs.path / "newfile"
+
+    # Hand back real bytes for a few chunks, then fail like a full disk would. The bytes
+    # already handed back are genuinely written to the (real) tmpdir file.
+    side_effects = [bytes(chunk_size)] * chunks_before_failure + [
+        OSError(errno.ENOSPC, "No space left on device")
+    ]
+    with patch.object(op._data, "generate", side_effect=side_effects):
+        with pytest.raises(OSError):
+            op.execute()
+
+    assert os.stat(real_path).st_size == expected_written
+    assert op.bytes_written == expected_written
+    assert op.as_dict()["bytes_written"] == expected_written
+    # The requested size is preserved so a replayed playbook re-requests the full write.
+    assert op.as_dict()["size"] == requested_size
+    assert f"size={requested_size}" in op.as_playbook_line()
 
 
 @pytest.mark.parametrize("size", (1, 2, 3, 100, 512, 1024, 4096))

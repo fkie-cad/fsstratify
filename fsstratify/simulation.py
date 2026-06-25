@@ -77,9 +77,11 @@ class Simulation:
                     desc="Simulation step",
                     total=self._operations.steps(),
                 ):
+                    status = "ok"
                     try:
                         exec_env.execute(operation)
                     except DiskFullError:
+                        status = "disk_full"
                         if self._config["continue_on_disk_full"]:
                             self._logger.warning("Disk is full.")
                         else:
@@ -87,7 +89,7 @@ class Simulation:
                                 f"Error: Disk is full at simulation step {self._simulation_step} and "
                                 "continue_on_disk_full is not set."
                             )
-                    stratum = self._get_stratum(operation)
+                    stratum = self._get_stratum(operation, status=status)
                     self._write_stratum_line(stratum)
                     self._write_playbook_line(operation.as_playbook_line())
                     self._simulation_step += 1
@@ -146,25 +148,22 @@ class Simulation:
         if self._config["write_playbook"]:
             self._output_playbook.write(f"{line}\n")
 
-    def _get_stratum(self, operation: Operation):
+    def _get_stratum(self, operation: Operation, status: str = "ok"):
         stratum = operation.as_dict()
+        stratum["status"] = status
         if self._config["write_timestamps"] and isinstance(operation, Remove):
-            stratum["timestamp"] = dt.now(timezone.utc).isoformat()
+            stratum["removed_at"] = dt.now(timezone.utc).isoformat()
         if not isinstance(operation, Remove) and not isinstance(operation, Time):
             stratum["affected_files"] = []
             files = self._vfs.get_files_below(operation.target)
             for file in files:
-                stratum["affected_files"].append(
-                    {
-                        "path": str(file),
-                        "allocated_areas": self._vfs.get_allocated_fragments_for_file(
-                            file
-                        ),
-                    }
-                )
-
+                entry = {
+                    "path": str(file),
+                    "allocated_areas": self._vfs.get_allocated_fragments_for_file(file),
+                }
                 if self._config["write_timestamps"]:
-                    stratum["timestamps"] = self._vfs.get_timestamps_for_file(file)
+                    entry["timestamps"] = self._vfs.get_timestamps_for_file(file)
+                stratum["affected_files"].append(entry)
 
         stratum["fs_areas"] = merge_overlapping_fragments(
             self._vfs.get_file_system_areas()

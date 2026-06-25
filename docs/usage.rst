@@ -154,6 +154,37 @@ reported there is to be taken with a grain of salt, though.
 If you want to cancel the simulation, simply hit ``Ctrl+C``.
 
 
+Simulation Output
+=================
+After every simulation step, fsstratify appends one JSON object (one *stratum* record) to
+``simulation.strata``. Besides the operation-specific keys, every record carries:
+
+``status``
+   ``"ok"`` for a step that completed normally, or ``"disk_full"`` for a step that hit an
+   out-of-space condition (``ENOSPC``) and was allowed to continue via
+   ``continue_on_disk_full``. Use this to tell complete steps from partial ones.
+
+For ``write`` and ``extend`` operations the record additionally contains:
+
+``size`` / ``extend_size``
+   The **requested** number of bytes. This is what the operation asked for and what the
+   playbook records, so a replayed playbook re-requests the same amount.
+
+``bytes_written``
+   The number of bytes **actually** written to disk, read back from the on-disk file size
+   after the step. On a clean write this equals the requested size; when a write is
+   truncated by a full disk it is smaller, and the per-file ``allocated_areas`` reflect the
+   same truncated reality.
+
+.. note::
+
+   ``bytes_written`` is derived from the real on-disk file size, so it stays accurate
+   regardless of write buffering. The one case it cannot capture is a file system that
+   defers space allocation entirely past ``close()`` (some ntfs-3g/FUSE configurations): the
+   write then reports success, no out-of-space error is raised, and the step is recorded as
+   ``"ok"``.
+
+
 Cleaning a Simulation Directory
 ===============================
 If a simulation crashed (which hopefully doesn't happen) or if you want to restart a simulation, it is necessary to
