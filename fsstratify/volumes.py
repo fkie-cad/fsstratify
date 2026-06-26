@@ -125,8 +125,23 @@ class LinuxRawDiskImage(FileBasedVolume):
         super().__init__(config)
 
     def flush(self):
-        # TODO: can we make this more efficient?
-        subprocess.run("sync")
+        """Flush dirty pages to the backing image before read-back.
+
+        Read-back parses the backing image file directly, so every dirty page
+        of the mounted file system must reach that image before dissect
+        re-reads it. For a loop-mounted ntfs-3g (FUSE) file system writes travel
+        ``mount point -> loop device -> backing image``; a ``syncfs(2)`` on the
+        mount point is forwarded through FUSE and flushes that chain. We
+        therefore target the mounted file system with ``sync -f`` (a real
+        per-file-system barrier, and cheaper than a global sync) and fall back
+        to a global ``sync`` only for the pre-mount flushes issued during image
+        creation/formatting, when nothing is mounted yet. ``check=True`` makes a
+        failed barrier raise instead of silently yielding a stale stratum.
+        """
+        if self.mount_point is not None and Path(self.mount_point).is_mount():
+            subprocess.run(["sync", "-f", str(self.mount_point)], check=True)
+        else:
+            subprocess.run(["sync"], check=True)
 
     def _create(self):
         with self.path.open("wb") as self._fp:
@@ -193,6 +208,11 @@ class WindowsRawDiskImage(FileBasedVolume):
         )  # set to Windows default partition alignment
 
     def flush(self):
+        if not self.drive_letter:
+            raise VolumeError(
+                "Cannot flush the volume cache: no drive letter is assigned to "
+                "the volume yet."
+            )
         run_powershell_script(
             f"Write-VolumeCache -DriveLetter {self.drive_letter} | Out-Null", check=True
         )
