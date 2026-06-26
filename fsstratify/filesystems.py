@@ -375,16 +375,10 @@ class NtfsParser(FileSystemParser):
             if record.is_dir():
                 return []
             if record.resident:
-                cluster = int(
-                    (record.offset + ntfs.boot_sector.MftStartLcn * ntfs.cluster_size)
-                    / FSSTRATIFY_BLOCK_SIZE
+                start_byte = (
+                    record.offset + ntfs.boot_sector.MftStartLcn * ntfs.cluster_size
                 )
-                return [
-                    (
-                        cluster,
-                        int(cluster + self.MFT_RECORD_SIZE / FSSTRATIFY_BLOCK_SIZE),
-                    )
-                ]
+                return [_byte_range_to_block_range(start_byte, self.MFT_RECORD_SIZE)]
             else:
                 return [
                     _clusters_to_block_range(run[0], run[1], ntfs.cluster_size)

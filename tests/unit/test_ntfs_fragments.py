@@ -73,6 +73,19 @@ def _regular_files(parser):
     return [f for f in parser.get_files() if f.type == FileType.REGULAR]
 
 
+def _resident_regular_files(parser, path):
+    """Return the regular files whose data is resident in their MFT record."""
+    from dissect.ntfs import NTFS
+
+    out = []
+    with FileSystem(path, _NTFS_FS_OFFSET) as fh:
+        ntfs = NTFS(fh)
+        for f in _regular_files(parser):
+            if ntfs.mft.get(str(f.path)).resident:
+                out.append(f)
+    return out
+
+
 # --------------------------------------------------------------------------- #
 # Pure helper: the single unit/interval convention (no image needed)
 # --------------------------------------------------------------------------- #
@@ -146,6 +159,63 @@ def test_metadata_blocks_point_at_real_mft_records(parser, ntfs_image):
     path, _ = ntfs_image
     data = _read_blocks(path, parser.get_metadata_blocks())
     assert data.count(b"FILE") >= 16
+
+
+# --------------------------------------------------------------------------- #
+# M1: resident files use the same inclusive 512-byte-block convention as
+# non-resident files (pre-fix the resident branch used an exclusive-style end).
+# --------------------------------------------------------------------------- #
+
+
+def test_resident_fragments_are_inclusive_two_block_ranges(parser, ntfs_image):
+    """A resident file's range spans exactly MFT_RECORD_SIZE/512 blocks, inclusive.
+
+    Pre-fix the end was ``start + MFT_RECORD_SIZE/512`` (exclusive style), so the span
+    was reported as 3 blocks instead of 2; this asserts the inclusive 2-block span.
+    """
+    path, _ = ntfs_image
+    expected_span = NtfsParser.MFT_RECORD_SIZE // FSSTRATIFY_BLOCK
+    resident = _resident_regular_files(parser, path)
+    assert resident, "fixture has no resident regular files"
+    for f in resident:
+        fragments = parser.get_allocated_fragments_for_file(f.path)
+        assert len(fragments) == 1
+        first, last = fragments[0]
+        assert last - first + 1 == expected_span
+
+
+def test_resident_files_do_not_overlap_neighbours(parser, ntfs_image):
+    """Distinct resident files occupy disjoint block ranges.
+
+    Pre-fix the exclusive-style end made adjacent resident files share a block at the
+    seam (e.g. (13006, 13008) and (13008, 13010) both claim 13008). With the inclusive
+    convention the ranges are disjoint.
+    """
+    path, _ = ntfs_image
+    ranges = []
+    for f in _resident_regular_files(parser, path):
+        ranges.extend(parser.get_allocated_fragments_for_file(f.path))
+    ranges.sort()
+    for (_, prev_last), (cur_first, _) in zip(ranges, ranges[1:]):
+        assert cur_first > prev_last
+
+
+def test_resident_range_contains_file_content(parser, ntfs_image):
+    """Bytes at a resident file's reported range include the file's actual content.
+
+    Confirms the inclusive end still covers the resident data (the fix did not truncate
+    the range): resident data lives inside the MFT record spanned by the range.
+    """
+    from dissect.ntfs import NTFS
+
+    path, _ = ntfs_image
+    resident = _resident_regular_files(parser, path)
+    target = next(f for f in resident if parser.get_size_of(f.path) > 0)
+
+    region = _read_blocks(path, parser.get_allocated_fragments_for_file(target.path))
+    with FileSystem(path, _NTFS_FS_OFFSET) as fh:
+        content = NTFS(fh).mft.get(str(target.path)).open().read()
+    assert content in region
 
 
 def test_allocated_areas_reconstruct_file_content(parser, ntfs_image):
