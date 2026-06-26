@@ -1,4 +1,5 @@
 """This module contains the various file system classes."""
+
 import datetime
 import logging
 import math
@@ -41,6 +42,18 @@ def _byte_range_to_block_range(start_byte: int, length_byte: int) -> Tuple[int, 
     first = start_byte // FSSTRATIFY_BLOCK_SIZE
     last = (start_byte + length_byte - 1) // FSSTRATIFY_BLOCK_SIZE
     return first, last
+
+
+def _ntfs_path_to_posix(path: str) -> Path:
+    r"""Normalize a dissect NTFS path to a POSIX ``Path``.
+
+    dissect.ntfs reports paths with the native NTFS ``\`` separator and no leading
+    separator (e.g. ``directory_1\testfile_4.txt``). ``\`` is illegal in NTFS
+    filenames, so splitting on it is unambiguous. Normalizing here keeps downstream
+    consumers (mount-point resolution, playbook encoding, equality/hashing)
+    separator-agnostic. Already-POSIX (forward-slash) input passes through unchanged.
+    """
+    return Path(PureWindowsPath(path).as_posix())
 
 
 def _clusters_to_block_range(
@@ -130,10 +143,11 @@ class FileType(Enum):
 @define(frozen=True)
 class File:
     type: FileType
-    path: Path = field(
-        converter=Path
-    )  # TODO below is a hack to have consistent posix path since dissect uses Windows paths everywhere
-    # path: Path = field(converter=lambda s: Path(PureWindowsPath(s)))
+    # Paths are POSIX. The converter only coerces str/Path and must not apply Windows
+    # parsing (that would mangle legal backslash filenames on ext); the NTFS parser
+    # normalizes dissect's Windows-style paths to POSIX at the boundary instead
+    # (see _ntfs_path_to_posix).
+    path: Path = field(converter=Path)
 
 
 class SimulationVirtualFileSystem:
@@ -465,10 +479,18 @@ class NtfsParser(FileSystemParser):
                 ):
                     continue
                 if segment.is_file():
-                    files.append(File(path=segment.full_path(), type=FileType.REGULAR))
+                    files.append(
+                        File(
+                            path=_ntfs_path_to_posix(segment.full_path()),
+                            type=FileType.REGULAR,
+                        )
+                    )
                 if segment.is_dir():
                     files.append(
-                        File(path=segment.full_path(), type=FileType.DIRECTORY)
+                        File(
+                            path=_ntfs_path_to_posix(segment.full_path()),
+                            type=FileType.DIRECTORY,
+                        )
                     )
             return files
 
@@ -647,10 +669,14 @@ class ExtParser(FileSystemParser):
                         getattr(gd, "bg_inode_table_hi", 0) << 32
                     ) | gd.bg_inode_table_lo
                     areas.append(
-                        _byte_range_to_block_range(block_bitmap * block_size, block_size)
+                        _byte_range_to_block_range(
+                            block_bitmap * block_size, block_size
+                        )
                     )
                     areas.append(
-                        _byte_range_to_block_range(inode_bitmap * block_size, block_size)
+                        _byte_range_to_block_range(
+                            inode_bitmap * block_size, block_size
+                        )
                     )
                     areas.append(
                         _byte_range_to_block_range(

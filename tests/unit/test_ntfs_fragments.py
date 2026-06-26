@@ -16,11 +16,15 @@ from pathlib import Path
 import pytest
 
 from fsstratify.filesystems import (
+    File,
+    FileType,
     NtfsParser,
     _byte_range_to_block_range,
     _clusters_to_block_range,
+    _ntfs_path_to_posix,
     _to_utc_iso,
     get_file_system_parser,
+    get_path_in_mount_point,
 )
 from fsstratify.volumes import FileSystem
 
@@ -108,7 +112,9 @@ def test_clusters_to_block_range_matches_byte_helper():
 
 
 def test_dispatch_returns_ntfs_parser():
-    assert isinstance(get_file_system_parser("ntfs", _ImageVolume(Path("x"))), NtfsParser)
+    assert isinstance(
+        get_file_system_parser("ntfs", _ImageVolume(Path("x"))), NtfsParser
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -161,7 +167,8 @@ def test_unreadable_metadata_runs_emit_warning(parser, monkeypatch, caplog):
 
     assert isinstance(result, list)
     warnings = [
-        r for r in caplog.records
+        r
+        for r in caplog.records
         if r.levelno == logging.WARNING and _INCOMPLETE_MSG in r.getMessage()
     ]
     assert warnings, "expected a warning when metadata data runs are unreadable"
@@ -173,9 +180,7 @@ def test_healthy_metadata_runs_emit_no_warning(parser, caplog):
         result = parser.get_metadata_blocks()
 
     assert result, "fixture should yield metadata blocks"
-    assert not [
-        r for r in caplog.records if _INCOMPLETE_MSG in r.getMessage()
-    ]
+    assert not [r for r in caplog.records if _INCOMPLETE_MSG in r.getMessage()]
 
 
 def test_metadata_and_allocated_areas_share_one_address_space(parser, ntfs_image):
@@ -272,9 +277,7 @@ def test_allocated_areas_reconstruct_file_content(parser, ntfs_image):
     from dissect.ntfs import NTFS
 
     path, _ = ntfs_image
-    target = max(
-        _regular_files(parser), key=lambda f: parser.get_size_of(f.path)
-    )
+    target = max(_regular_files(parser), key=lambda f: parser.get_size_of(f.path))
     fragments = parser.get_allocated_fragments_for_file(target.path)
     assert fragments, "expected a non-resident multi-block file in the fixture"
 
@@ -326,3 +329,65 @@ def test_ntfs_timestamps_are_utc_aware(parser):
             parsed = datetime.fromisoformat(value)
             assert parsed.tzinfo is not None
             assert parsed.utcoffset() == timedelta(0)
+
+
+# --- Path normalization: dissect NTFS (backslash) paths -> POSIX -----------------
+#
+# dissect.ntfs reports paths with the native NTFS backslash separator and no leading
+# separator. Left unconverted, a nested file becomes a single-component path whose name
+# literally contains a backslash, which then resolves to one bogus file in the mount
+# root instead of a real nested path. These tests pin the normalization at ingestion.
+
+_NESTED_FILE = Path("directory_1/testfile_4.txt")  # present in the fixture image
+
+
+def test_ntfs_path_to_posix_splits_backslash_separator():
+    out = _ntfs_path_to_posix("directory_1\\testfile_4.txt")
+    assert out == Path("directory_1/testfile_4.txt")
+    assert out.parts == ("directory_1", "testfile_4.txt")
+    assert "\\" not in str(out)
+
+
+def test_ntfs_path_to_posix_handles_odd_names():
+    """Only the separator is special; spaces/parens stay inside the name."""
+    out = _ntfs_path_to_posix("dir 1\\file (a).txt")
+    assert out.parts == ("dir 1", "file (a).txt")
+
+
+def test_ntfs_path_to_posix_passes_through_simple_and_posix_input():
+    assert _ntfs_path_to_posix("testfile_1.txt") == Path("testfile_1.txt")
+    assert _ntfs_path_to_posix("directory_1/testfile_4.txt") == Path(
+        "directory_1/testfile_4.txt"
+    )
+
+
+def test_nested_ntfs_files_use_posix_separators(parser):
+    files = parser.get_files()
+    assert all("\\" not in str(f.path) for f in files)
+    assert File(path=_NESTED_FILE, type=FileType.REGULAR) in files
+    assert File(path=Path("directory_1"), type=FileType.DIRECTORY) in files
+
+
+def test_get_files_below_nested_ntfs(parser):
+    assert parser.get_files_below(Path("directory_1")) == [_NESTED_FILE]
+
+
+def test_allocated_fragments_for_nested_ntfs_file(parser):
+    """A lookup of the nested POSIX path resolves and yields on-disk fragments."""
+    fragments = parser.get_allocated_fragments_for_file(_NESTED_FILE)
+    assert fragments
+    assert all(first <= last for first, last in fragments)
+
+
+def test_nested_ntfs_path_resolves_under_mount_point(parser, tmp_path, monkeypatch):
+    """The nested File.path resolves to a real nested path under the mount point,
+    not a single literal-backslash component in the mount root."""
+    import fsstratify.filesystems as fsmod
+
+    nested = next(f for f in parser.get_files() if f.path == _NESTED_FILE)
+    # Set the module global directly via monkeypatch so the prior value (set by other
+    # tests' fixtures) is restored automatically and global state is not leaked.
+    mount = tmp_path.resolve()
+    monkeypatch.setattr(fsmod, "_SIMULATION_MOUNT_POINT", mount)
+    resolved = get_path_in_mount_point(nested.path)
+    assert resolved == mount / "directory_1" / "testfile_4.txt"
