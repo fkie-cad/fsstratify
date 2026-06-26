@@ -54,14 +54,42 @@ def _clusters_to_block_range(
     return _byte_range_to_block_range(start_lcn * cluster_size, count * cluster_size)
 
 
-def _normalize_timestamps(created, modified, changed, accessed) -> dict:
+def _to_utc_iso(value) -> Optional[str]:
+    """Return an ISO-8601 string in UTC for a datetime, or ``None``.
+
+    NTFS and ext store timestamps in UTC, but the parser may hand back either
+    naive or aware datetimes depending on the dissect version. Treat naive values
+    as UTC and convert aware values to UTC, so emitted strings are never
+    timezone-ambiguous (matching the tz-aware wall-clock time recorded for
+    removals).
+    """
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=datetime.timezone.utc)
+    else:
+        value = value.astimezone(datetime.timezone.utc)
+    return value.isoformat()
+
+
+def _normalize_timestamps(
+    created, modified, changed, accessed, *, assume_utc=True
+) -> dict:
     """Return a file-system-agnostic timestamp dict with ISO-formatted values.
 
     Fields that the underlying file system does not provide are reported as ``None``.
+    With ``assume_utc`` (the default, for UTC file systems such as ext), naive
+    datetimes are emitted as UTC-aware. For file systems that record local time
+    (FAT), pass ``assume_utc=False`` so naive values stay naive rather than being
+    mislabeled as UTC.
     """
 
     def _iso(value):
-        return value.isoformat() if value is not None else None
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return _to_utc_iso(value) if assume_utc else value.isoformat()
+        return value.astimezone(datetime.timezone.utc).isoformat()
 
     return {
         "created": _iso(created),
@@ -352,16 +380,24 @@ class NtfsParser(FileSystemParser):
                 return {}
             return {
                 "standard_information_attribute": {
-                    "creation_time": standard_information_attr.creation_time.isoformat(),
-                    "modified_time": standard_information_attr.last_modification_time.isoformat(),
-                    "change_time": standard_information_attr.last_change_time.isoformat(),
-                    "access_time": standard_information_attr.last_access_time.isoformat(),
+                    "creation_time": _to_utc_iso(
+                        standard_information_attr.creation_time
+                    ),
+                    "modified_time": _to_utc_iso(
+                        standard_information_attr.last_modification_time
+                    ),
+                    "change_time": _to_utc_iso(
+                        standard_information_attr.last_change_time
+                    ),
+                    "access_time": _to_utc_iso(
+                        standard_information_attr.last_access_time
+                    ),
                 },
                 "file_name_attribute": {
-                    "creation_time": file_name_attr.creation_time.isoformat(),
-                    "modified_time": file_name_attr.last_modification_time.isoformat(),
-                    "change_time": file_name_attr.last_change_time.isoformat(),
-                    "access_time": file_name_attr.last_access_time.isoformat(),
+                    "creation_time": _to_utc_iso(file_name_attr.creation_time),
+                    "modified_time": _to_utc_iso(file_name_attr.last_modification_time),
+                    "change_time": _to_utc_iso(file_name_attr.last_change_time),
+                    "access_time": _to_utc_iso(file_name_attr.last_access_time),
                 },
             }
 
@@ -658,11 +694,13 @@ class FatParser(FileSystemParser):
             if entry.is_directory():
                 return {}
             # FAT has no separate metadata-change time; times are local, ~2s res.
+            # Keep them naive (not UTC-tagged) so local times are not mislabeled.
             return _normalize_timestamps(
                 created=entry.ctime,
                 modified=entry.mtime,
                 changed=None,
                 accessed=entry.atime,
+                assume_utc=False,
             )
 
     def get_allocated_fragments_for_file(self, path: Path) -> List[Tuple[int, int]]:

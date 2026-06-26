@@ -19,6 +19,7 @@ from fsstratify.filesystems import (
     NtfsParser,
     _byte_range_to_block_range,
     _clusters_to_block_range,
+    _to_utc_iso,
     get_file_system_parser,
 )
 from fsstratify.volumes import FileSystem
@@ -281,3 +282,47 @@ def test_allocated_areas_reconstruct_file_content(parser, ntfs_image):
     with FileSystem(path, _NTFS_FS_OFFSET) as fh:
         actual = NTFS(fh).mft.get(str(target.path)).open().read()
     assert reconstructed[: len(actual)] == actual
+
+
+# --------------------------------------------------------------------------- #
+# Timestamps are emitted as timezone-unambiguous UTC ISO-8601
+# --------------------------------------------------------------------------- #
+
+
+def test_to_utc_iso_treats_naive_as_utc():
+    """A naive datetime is interpreted as UTC and gets an explicit offset."""
+    from datetime import datetime, timedelta
+
+    out = _to_utc_iso(datetime(2023, 1, 28, 19, 56, 44))
+    parsed = datetime.fromisoformat(out)
+    assert parsed.tzinfo is not None
+    assert parsed.utcoffset() == timedelta(0)
+    assert out.endswith("+00:00")
+
+
+def test_to_utc_iso_converts_aware_to_utc():
+    """An aware non-UTC datetime is normalized to UTC, same instant."""
+    from datetime import datetime, timedelta, timezone
+
+    aware = datetime(2023, 1, 28, 21, 56, 44, tzinfo=timezone(timedelta(hours=2)))
+    parsed = datetime.fromisoformat(_to_utc_iso(aware))
+    assert parsed.utcoffset() == timedelta(0)
+    assert parsed == aware  # same instant, just expressed in UTC
+
+
+def test_to_utc_iso_passes_none_through():
+    assert _to_utc_iso(None) is None
+
+
+def test_ntfs_timestamps_are_utc_aware(parser):
+    """Every NTFS SI/FN timestamp is emitted as UTC-aware ISO-8601."""
+    from datetime import datetime, timedelta
+
+    target = next(f for f in _regular_files(parser) if parser.get_size_of(f.path) > 0)
+    ts = parser.get_timestamps_for_file(target.path)
+    assert set(ts) == {"standard_information_attribute", "file_name_attribute"}
+    for attr in ts.values():
+        for value in attr.values():
+            parsed = datetime.fromisoformat(value)
+            assert parsed.tzinfo is not None
+            assert parsed.utcoffset() == timedelta(0)

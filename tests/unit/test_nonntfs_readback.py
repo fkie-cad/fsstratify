@@ -245,6 +245,25 @@ def test_timestamps_have_normalized_schema(parser, fs_image):
         assert ts["changed"] is not None
 
 
+def test_timestamps_are_unambiguous(parser, fs_image):
+    """ext times are UTC-aware; FAT (local-time) times stay naive, not mislabeled UTC."""
+    from datetime import datetime, timedelta
+
+    lookup = "/ALPHA.BIN" if fs_image.fstype.startswith("fat") else "/alpha.bin"
+    ts = parser.get_timestamps_for_file(Path(lookup))
+    for value in ts.values():
+        if value is None:
+            continue
+        parsed = datetime.fromisoformat(value)
+        if fs_image.fstype.startswith("fat"):
+            # Local time with no timezone: must not carry a (false) UTC offset.
+            assert parsed.tzinfo is None
+        else:
+            # ext stores UTC: must be tz-aware with a zero offset.
+            assert parsed.tzinfo is not None
+            assert parsed.utcoffset() == timedelta(0)
+
+
 def test_get_files_below_lists_nested_files(parser, fs_image):
     root = parser.get_files_below(Path("/"))
     assert {str(p).lower() for p in root} == {p.lower() for p in EXPECTED_REGULAR}
