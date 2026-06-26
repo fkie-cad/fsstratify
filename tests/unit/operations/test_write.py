@@ -264,7 +264,7 @@ def test_that_a_file_is_written_correctly(size: int, mounted_test_vfs):
 
 
 def test_that_a_fresh_operation_reports_zero_bytes_written():
-    # H1: before execute() nothing has been written.
+    # before execute() nothing has been written.
     assert Write(Path("newfile"), size=1024).bytes_written == 0
 
 
@@ -272,7 +272,7 @@ def test_that_a_fresh_operation_reports_zero_bytes_written():
 def test_that_bytes_written_equals_size_on_a_successful_write(
     size: int, mounted_test_vfs
 ):
-    # H1: a clean write records actual == requested, and the playbook keeps the
+    # a clean write records actual == requested, and the playbook keeps the
     # requested size only (no bytes_written) for replay fidelity.
     op = Write(Path("newfile"), size=size, chunked=True, chunk_size=512)
     op.execute()
@@ -283,7 +283,7 @@ def test_that_bytes_written_equals_size_on_a_successful_write(
 
 
 def test_that_bytes_written_reflects_a_partial_write_on_disk_full(mounted_test_vfs):
-    # H1: an ENOSPC mid-write leaves a truncated file; bytes_written, read back from the
+    # an ENOSPC mid-write leaves a truncated file; bytes_written, read back from the
     # on-disk size, must reflect the truncation while the requested size is unchanged.
     chunk_size = 512
     chunks_before_failure = 3

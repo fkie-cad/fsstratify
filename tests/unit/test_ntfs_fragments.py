@@ -1,4 +1,4 @@
-"""Tests for NTFS read-back unit consistency (audit finding C2).
+"""Tests for NTFS read-back unit consistency.
 
 Before the fix, ``NtfsParser.get_metadata_blocks`` emitted raw NTFS *cluster* numbers
 while ``get_allocated_fragments_for_file`` emitted *512-byte block* indices, so a single
@@ -10,6 +10,7 @@ NTFS ``.vhd`` fixture is read directly through a ``FileSystem`` handle at the pa
 offset, exactly as ``Volume.get_filesystem`` does at run time.
 """
 
+import logging
 from pathlib import Path
 
 import pytest
@@ -129,8 +130,55 @@ def test_metadata_blocks_are_inclusive_and_in_bounds(parser, ntfs_image):
         assert 0 <= first <= last < fs_blocks
 
 
+# --------------------------------------------------------------------------- #
+# A FileNotFoundError raised while reading a metadata attribute's data runs
+# must be surfaced as a warning, not silently swallowed (which would leave
+# fs_areas quietly incomplete).
+# --------------------------------------------------------------------------- #
+
+
+_INCOMPLETE_MSG = "fs_areas may be incomplete"
+
+
+def test_unreadable_metadata_runs_emit_warning(parser, monkeypatch, caplog):
+    """Pre-fix this path ``pass``ed silently; now it logs a WARNING and degrades.
+
+    The genuine error is hard to provoke against a healthy fixture, so force every
+    metadata attribute's ``dataruns()`` to raise the dissect ``FileNotFoundError``.
+    ``get_metadata_blocks`` must not crash, must return a list, and must warn.
+    """
+    import dissect.ntfs.exceptions
+    from dissect.ntfs.attr import Attribute
+
+    def _raise(*_args, **_kwargs):
+        raise dissect.ntfs.exceptions.FileNotFoundError("forced for test")
+
+    monkeypatch.setattr(Attribute, "dataruns", _raise)
+
+    with caplog.at_level(logging.WARNING, logger="fsstratify.filesystems"):
+        result = parser.get_metadata_blocks()
+
+    assert isinstance(result, list)
+    warnings = [
+        r for r in caplog.records
+        if r.levelno == logging.WARNING and _INCOMPLETE_MSG in r.getMessage()
+    ]
+    assert warnings, "expected a warning when metadata data runs are unreadable"
+
+
+def test_healthy_metadata_runs_emit_no_warning(parser, caplog):
+    """A normal read produces metadata blocks and no incomplete-fs_areas warning."""
+    with caplog.at_level(logging.WARNING, logger="fsstratify.filesystems"):
+        result = parser.get_metadata_blocks()
+
+    assert result, "fixture should yield metadata blocks"
+    assert not [
+        r for r in caplog.records if _INCOMPLETE_MSG in r.getMessage()
+    ]
+
+
 def test_metadata_and_allocated_areas_share_one_address_space(parser, ntfs_image):
-    """C2 proof: fs_areas and allocated_areas live in the same 512-byte block space.
+    """fs_areas and allocated_areas live in the same 512-byte block space.
 
     Pre-fix, metadata used cluster numbers (~8x smaller), so its max block fell far
     below the file-data blocks. Post-fix both reach into the same high-block region.
@@ -162,7 +210,7 @@ def test_metadata_blocks_point_at_real_mft_records(parser, ntfs_image):
 
 
 # --------------------------------------------------------------------------- #
-# M1: resident files use the same inclusive 512-byte-block convention as
+# Resident files use the same inclusive 512-byte-block convention as
 # non-resident files (pre-fix the resident branch used an exclusive-style end).
 # --------------------------------------------------------------------------- #
 

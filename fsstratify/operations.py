@@ -118,14 +118,14 @@ class FileWriteOperation(Operation, ABC):
         """Number of bytes actually written to disk by the last ``execute()``.
 
         Derived from the real on-disk file size after the operation, so it stays
-        accurate even when an ENOSPC truncates the write (audit finding H1) and
+        accurate even when an ENOSPC truncates the write and
         regardless of Python/FUSE buffering. For a clean run it equals the requested
         size; for a partial (disk-full) write it is smaller.
 
         Residual limitation: if ntfs-3g/FUSE defers allocation entirely past the file's
         ``close()``, the write reports success and no ``OSError`` reaches the execution
         environment, so neither a ``DiskFullError`` nor a short ``bytes_written`` is
-        produced. Closing that gap needs a checked ``fsync``/image sync (audit M4).
+        produced. Closing that gap needs a checked ``fsync``/image sync.
         """
         return self._bytes_written
 

@@ -1,4 +1,4 @@
-"""Tests for non-NTFS read-back (audit finding C1).
+"""Tests for non-NTFS read-back.
 
 Before the fix, ``get_file_system_parser`` only supported NTFS, so any ext*/FAT
 simulation crashed at VFS construction and produced no strata. These tests show that
@@ -262,7 +262,7 @@ def test_metadata_blocks_are_nonempty_and_in_bounds(parser, fs_image):
 
 
 def test_simulation_vfs_constructs_and_lists_for_non_ntfs(parser, fs_image, tmp_path):
-    """The exact path that used to crash for non-NTFS (C1): build the VFS and read."""
+    """The exact path that used to crash for non-NTFS: build the VFS and read."""
     vfs = SimulationVirtualFileSystem(
         _ImageVolume(fs_image.path), tmp_path, fs_image.fstype
     )

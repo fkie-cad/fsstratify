@@ -270,7 +270,7 @@ def test_that_a_file_is_extended_correctly(extend_size: int, mounted_test_vfs):
 def test_that_bytes_written_counts_only_appended_bytes_on_success(
     extend_size: int, mounted_test_vfs
 ):
-    # H1: bytes_written is the *appended* amount, not the final file size -> the
+    # bytes_written is the *appended* amount, not the final file size -> the
     # pre-existing content must be subtracted (initial_size baseline).
     op = Extend(Path("sfile"), extend_size=extend_size, chunked=True, chunk_size=512)
     op.execute()
@@ -280,7 +280,7 @@ def test_that_bytes_written_counts_only_appended_bytes_on_success(
 
 
 def test_that_bytes_written_reflects_a_partial_extend_on_disk_full(mounted_test_vfs):
-    # H1: an ENOSPC mid-extend appends only part of the data; bytes_written must report
+    # an ENOSPC mid-extend appends only part of the data; bytes_written must report
     # the appended delta (final size minus the original size), not the requested amount.
     chunk_size = 512
     chunks_before_failure = 2

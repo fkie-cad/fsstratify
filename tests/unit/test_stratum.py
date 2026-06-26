@@ -1,4 +1,4 @@
-"""Unit tests for ``Simulation._get_stratum`` (audit finding C3).
+"""Unit tests for ``Simulation._get_stratum``.
 
 Before the fix, per-file timestamps were written to a single stratum-level
 ``timestamps`` key that was overwritten on every loop iteration, so a multi-file
@@ -62,7 +62,7 @@ THREE_FILES = [Path("/dir/a.txt"), Path("/dir/b.txt"), Path("/dir/sub/c.txt")]
 
 
 def test_multifile_op_keeps_every_files_timestamps_keyed_to_path():
-    """C3 proof: each affected_files entry has its own correct timestamps."""
+    """Each affected_files entry has its own correct timestamps."""
     vfs = FakeVfs(THREE_FILES)
     sim = _make_simulation(vfs, write_timestamps=True)
 
@@ -122,7 +122,7 @@ def test_remove_without_timestamps_has_no_removed_at():
 
 
 def test_status_defaults_to_ok():
-    """H1: a clean step is flagged ok so it is distinguishable from a partial one."""
+    """A clean step is flagged ok so it is distinguishable from a partial one."""
     vfs = FakeVfs(THREE_FILES)
     sim = _make_simulation(vfs)
 
@@ -132,7 +132,7 @@ def test_status_defaults_to_ok():
 
 
 def test_status_disk_full_is_recorded():
-    """H1: a step continued after ENOSPC is marked disk_full."""
+    """A step continued after ENOSPC is marked disk_full."""
     vfs = FakeVfs(THREE_FILES)
     sim = _make_simulation(vfs)
 

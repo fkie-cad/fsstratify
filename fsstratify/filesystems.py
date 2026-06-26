@@ -459,9 +459,13 @@ class NtfsParser(FileSystemParser):
                                                 run[0], run[1], ntfs.cluster_size
                                             )
                                         )
-                            except dissect.ntfs.exceptions.FileNotFoundError:
-                                # TODO: generate a warning
-                                pass
+                            except dissect.ntfs.exceptions.FileNotFoundError as err:
+                                _LOGGER.warning(
+                                    "Could not read data runs for metadata record "
+                                    "%r (%s); fs_areas may be incomplete.",
+                                    record.full_path(),
+                                    err,
+                                )
             return file_system_areas
 
     @staticmethod

@@ -1,4 +1,4 @@
-"""Unit tests for the volume flush barrier (audit finding M4).
+"""Unit tests for the volume flush barrier.
 
 These tests are root-free: they construct the volume objects with a minimal
 config dict and stub out the actual ``sync`` / ``Write-VolumeCache`` calls, so
